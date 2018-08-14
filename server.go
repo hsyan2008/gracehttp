@@ -4,14 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/hsyan2008/go-logger/logger"
 )
 
 const (
@@ -100,9 +100,9 @@ func (srv *Server) Serve() error {
 	go srv.handleSignals()
 	err := srv.httpServer.Serve(srv.listener)
 
-	srv.logf("waiting for connections closed.")
+	logger.Info("waiting for connections closed.")
 	<-srv.shutdownChan
-	srv.logf("all connections closed.")
+	logger.Info("all connections closed.")
 
 	return err
 }
@@ -141,15 +141,15 @@ func (srv *Server) handleSignals() {
 		sig = <-srv.signalChan
 		switch sig {
 		case syscall.SIGQUIT:
-			srv.logf("received SIGTERM, graceful shutting down HTTP server.")
+			logger.Info("received SIGTERM, graceful shutting down HTTP server.")
 			srv.shutdownHTTPServer()
 		case syscall.SIGHUP:
-			srv.logf("received SIGUSR2, graceful restarting HTTP server.")
+			logger.Info("received SIGUSR2, graceful restarting HTTP server.")
 
 			if pid, err := srv.startNewProcess(); err != nil {
-				srv.logf("start new process failed: %v, continue serving.", err)
+				logger.Infof("start new process failed: %v, continue serving.", err)
 			} else {
-				srv.logf("start new process successed, the new pid is %d.", pid)
+				logger.Infof("start new process successed, the new pid is %d.", pid)
 				srv.shutdownHTTPServer()
 			}
 		default:
@@ -159,9 +159,9 @@ func (srv *Server) handleSignals() {
 
 func (srv *Server) shutdownHTTPServer() {
 	if err := srv.httpServer.Shutdown(context.Background()); err != nil {
-		srv.logf("HTTP server shutdown error: %v", err)
+		logger.Infof("HTTP server shutdown error: %v", err)
 	} else {
-		srv.logf("HTTP server shutdown success.")
+		logger.Info("HTTP server shutdown success.")
 		srv.shutdownChan <- true
 	}
 }
@@ -201,15 +201,4 @@ func (srv *Server) getTCPListenerFd() (uintptr, error) {
 		return 0, err
 	}
 	return file.Fd(), nil
-}
-
-func (srv *Server) logf(format string, args ...interface{}) {
-	pids := strconv.Itoa(os.Getpid())
-	format = "[pid " + pids + "] " + format
-
-	if srv.httpServer.ErrorLog != nil {
-		srv.httpServer.ErrorLog.Printf(format, args...)
-	} else {
-		log.Printf(format, args...)
-	}
 }
