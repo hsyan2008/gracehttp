@@ -141,10 +141,10 @@ func (srv *Server) handleSignals() {
 		sig = <-srv.signalChan
 		switch sig {
 		case syscall.SIGQUIT:
-			logger.Info("received SIGTERM, graceful shutting down HTTP server.")
+			logger.Info("received SIGQUIT, graceful shutting down HTTP server.")
 			srv.shutdownHTTPServer()
 		case syscall.SIGHUP:
-			logger.Info("received SIGUSR2, graceful restarting HTTP server.")
+			logger.Info("received SIGHUP, graceful restarting HTTP server.")
 
 			if pid, err := srv.startNewProcess(); err != nil {
 				logger.Infof("start new process failed: %v, continue serving.", err)
