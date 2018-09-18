@@ -133,21 +133,25 @@ func (srv *Server) handleSignals() {
 
 	signal.Notify(
 		srv.signalChan,
+
 		syscall.SIGQUIT,
+		syscall.SIGINT,
+
 		syscall.SIGHUP,
+		syscall.SIGTERM,
 	)
 
 	for {
 		sig = <-srv.signalChan
 		switch sig {
-		case syscall.SIGQUIT:
+		case syscall.SIGQUIT, syscall.SIGINT:
 			logger.Info("received SIGQUIT, graceful shutting down HTTP server.")
 			srv.shutdownHTTPServer()
-		case syscall.SIGHUP:
+		case syscall.SIGHUP, syscall.SIGTERM:
 			logger.Info("received SIGHUP, graceful restarting HTTP server.")
 
 			if pid, err := srv.startNewProcess(); err != nil {
-				logger.Infof("start new process failed: %v, continue serving.", err)
+				logger.Warnf("start new process failed: %v, continue serving.", err)
 			} else {
 				logger.Infof("start new process successed, the new pid is %d.", pid)
 				srv.shutdownHTTPServer()
@@ -159,7 +163,7 @@ func (srv *Server) handleSignals() {
 
 func (srv *Server) shutdownHTTPServer() {
 	if err := srv.httpServer.Shutdown(context.Background()); err != nil {
-		logger.Infof("HTTP server shutdown error: %v", err)
+		logger.Warnf("HTTP server shutdown error: %v", err)
 	} else {
 		logger.Info("HTTP server shutdown success.")
 		srv.shutdownChan <- true
