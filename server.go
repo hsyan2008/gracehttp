@@ -74,10 +74,10 @@ func (srv *Server) ListenAndServeTLS(certFile, keyFile string) error {
 
 	config := &tls.Config{}
 	if srv.httpServer.TLSConfig != nil {
-		*config = *srv.httpServer.TLSConfig
+		config = srv.httpServer.TLSConfig
 	}
 	if config.NextProtos == nil {
-		config.NextProtos = []string{"http/1.1"}
+		config.NextProtos = []string{"h2", "http/1.1"}
 	}
 
 	var err error
