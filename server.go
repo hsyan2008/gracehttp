@@ -191,7 +191,7 @@ func (srv *Server) startNewProcess() (uintptr, error) {
 		Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), listenerFd},
 	}
 
-	fork, err := syscall.ForkExec(os.Args[0], os.Args, execSpec)
+	fork, _, err := syscall.StartProcess(os.Args[0], os.Args, execSpec)
 	if err != nil {
 		return 0, fmt.Errorf("failed to forkexec: %v", err)
 	}
