@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hsyan2008/go-logger/logger"
+	logger "github.com/hsyan2008/go-logger"
 )
 
 const (
