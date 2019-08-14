@@ -24,8 +24,6 @@ const (
 type Server struct {
 	*http.Server
 
-	isHTTPS bool
-
 	//分开是为了解决getTCPListenerFd()里报错
 	//panic: interface conversion: net.Listener is *tls.listener, not *net.TCPListener
 	listener    net.Listener
@@ -59,16 +57,10 @@ func NewServer(addr string, handler http.Handler, readTimeout, writeTimeout time
 
 func (srv *Server) InitListener() (net.Listener, error) {
 	if srv.listener == nil {
-		addr := srv.Addr
-		if addr == "" {
-			if srv.isHTTPS {
-				addr = ":https"
-			} else {
-				addr = ":http"
-			}
+		if srv.Addr == "" {
+			return nil, fmt.Errorf("listen to nil addr")
 		}
-
-		ln, err := srv.getNetListener(addr)
+		ln, err := srv.getNetListener(srv.Addr)
 		if err != nil {
 			return nil, err
 		}
@@ -88,8 +80,6 @@ func (srv *Server) ListenAndServe() error {
 }
 
 func (srv *Server) ListenAndServeTLS(certFile, keyFile string) error {
-	srv.isHTTPS = true
-
 	config := &tls.Config{}
 	if srv.TLSConfig != nil {
 		config = srv.TLSConfig
@@ -117,7 +107,7 @@ func (srv *Server) ListenAndServeTLS(certFile, keyFile string) error {
 func (srv *Server) Serve() error {
 	go srv.handleSignals()
 	var err error
-	if srv.isHTTPS {
+	if srv.tlsListener != nil {
 		err = srv.Server.Serve(srv.tlsListener)
 	} else {
 		err = srv.Server.Serve(srv.listener)
