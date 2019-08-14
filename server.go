@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	logger "github.com/hsyan2008/go-logger"
+	"github.com/hsyan2008/go-logger"
 )
 
 const (
@@ -22,8 +22,14 @@ const (
 
 // HTTP server that supported graceful shutdown or restart
 type Server struct {
-	httpServer *http.Server
-	listener   net.Listener
+	*http.Server
+
+	isHTTPS bool
+
+	//分开是为了解决getTCPListenerFd()里报错
+	//panic: interface conversion: net.Listener is *tls.listener, not *net.TCPListener
+	listener    net.Listener
+	tlsListener net.Listener
 
 	isGraceful   bool
 	signalChan   chan os.Signal
@@ -37,7 +43,7 @@ func NewServer(addr string, handler http.Handler, readTimeout, writeTimeout time
 	}
 
 	return &Server{
-		httpServer: &http.Server{
+		Server: &http.Server{
 			Addr:    addr,
 			Handler: handler,
 
@@ -51,30 +57,42 @@ func NewServer(addr string, handler http.Handler, readTimeout, writeTimeout time
 	}
 }
 
-func (srv *Server) ListenAndServe() error {
-	addr := srv.httpServer.Addr
-	if addr == "" {
-		addr = ":http"
+func (srv *Server) InitListener() (net.Listener, error) {
+	if srv.listener == nil {
+		addr := srv.Addr
+		if addr == "" {
+			if srv.isHTTPS {
+				addr = ":https"
+			} else {
+				addr = ":http"
+			}
+		}
+
+		ln, err := srv.getNetListener(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		srv.listener = ln
 	}
 
-	ln, err := srv.getNetListener(addr)
+	return srv.listener, nil
+}
+
+func (srv *Server) ListenAndServe() error {
+	_, err := srv.InitListener()
 	if err != nil {
 		return err
 	}
-
-	srv.listener = ln
 	return srv.Serve()
 }
 
 func (srv *Server) ListenAndServeTLS(certFile, keyFile string) error {
-	addr := srv.httpServer.Addr
-	if addr == "" {
-		addr = ":https"
-	}
+	srv.isHTTPS = true
 
 	config := &tls.Config{}
-	if srv.httpServer.TLSConfig != nil {
-		config = srv.httpServer.TLSConfig
+	if srv.TLSConfig != nil {
+		config = srv.TLSConfig
 	}
 	if config.NextProtos == nil {
 		config.NextProtos = []string{"h2", "http/1.1"}
@@ -87,18 +105,23 @@ func (srv *Server) ListenAndServeTLS(certFile, keyFile string) error {
 		return err
 	}
 
-	ln, err := srv.getNetListener(addr)
+	_, err = srv.InitListener()
 	if err != nil {
 		return err
 	}
 
-	srv.listener = tls.NewListener(ln, config)
+	srv.tlsListener = tls.NewListener(srv.listener, config)
 	return srv.Serve()
 }
 
 func (srv *Server) Serve() error {
 	go srv.handleSignals()
-	err := srv.httpServer.Serve(srv.listener)
+	var err error
+	if srv.isHTTPS {
+		err = srv.Server.Serve(srv.tlsListener)
+	} else {
+		err = srv.Server.Serve(srv.listener)
+	}
 
 	logger.Info("waiting for connections closed.")
 	<-srv.shutdownChan
@@ -162,7 +185,7 @@ func (srv *Server) handleSignals() {
 }
 
 func (srv *Server) shutdownHTTPServer() {
-	if err := srv.httpServer.Shutdown(context.Background()); err != nil {
+	if err := srv.Shutdown(context.Background()); err != nil {
 		logger.Warnf("HTTP server shutdown error: %v", err)
 	} else {
 		logger.Info("HTTP server shutdown success.")
@@ -191,7 +214,7 @@ func (srv *Server) startNewProcess() (uintptr, error) {
 		Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), listenerFd},
 	}
 
-	fork, _, err := syscall.StartProcess(os.Args[0], os.Args, execSpec)
+	fork, err := syscall.ForkExec(os.Args[0], os.Args, execSpec)
 	if err != nil {
 		return 0, fmt.Errorf("failed to forkexec: %v", err)
 	}
