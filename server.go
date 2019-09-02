@@ -158,10 +158,10 @@ func (srv *Server) handleSignals() {
 		sig = <-srv.signalChan
 		switch sig {
 		case syscall.SIGQUIT, syscall.SIGINT:
-			logger.Info("received SIGQUIT, graceful shutting down HTTP server.")
+			logger.Infof("received %s, graceful shutting down HTTP server.", sig)
 			srv.shutdownHTTPServer()
 		case syscall.SIGHUP, syscall.SIGTERM:
-			logger.Info("received SIGHUP, graceful restarting HTTP server.")
+			logger.Infof("received %s, graceful restarting HTTP server.", sig)
 
 			if pid, err := srv.startNewProcess(); err != nil {
 				logger.Warnf("start new process failed: %v, continue serving.", err)
@@ -202,6 +202,9 @@ func (srv *Server) startNewProcess() (uintptr, error) {
 	execSpec := &syscall.ProcAttr{
 		Env:   envs,
 		Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), listenerFd},
+		Sys: &syscall.SysProcAttr{
+			Setsid: true,
+		},
 	}
 
 	//win不支持ForkExec
