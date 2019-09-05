@@ -202,9 +202,7 @@ func (srv *Server) startNewProcess() (uintptr, error) {
 	execSpec := &syscall.ProcAttr{
 		Env:   envs,
 		Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), listenerFd},
-		Sys: &syscall.SysProcAttr{
-			Setsid: true,
-		},
+		Sys:   getSysProcAttr(),
 	}
 
 	//win不支持ForkExec
