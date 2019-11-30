@@ -157,10 +157,10 @@ func (srv *Server) handleSignals() {
 	for {
 		sig = <-srv.signalChan
 		switch sig {
-		case syscall.SIGQUIT, syscall.SIGINT:
+		case syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGINT:
 			logger.Infof("received %s, graceful shutting down HTTP server.", sig)
 			srv.shutdownHTTPServer()
-		case syscall.SIGHUP, syscall.SIGTERM:
+		case syscall.SIGTERM:
 			logger.Infof("received %s, graceful restarting HTTP server.", sig)
 
 			if pid, err := srv.startNewProcess(); err != nil {
